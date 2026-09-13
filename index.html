@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>物理運動學實驗室</title>
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="物理Lab">
+    <link rel="apple-touch-icon" href="https://api.iconify.design/noto/automobile.svg?width=192&height=192">
+    <link id="manifest-link" rel="manifest" href="">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Noto Sans TC', sans-serif; background-color: #f8fafc; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .car-flip { transform: scaleX(-1); }
+        .car-normal { transform: scaleX(1); }
+    </style>
+</head>
+<body class="text-slate-800 bg-slate-50 min-h-screen lg:h-screen lg:overflow-hidden p-3 md:p-4 font-sans flex flex-col">
+
+    <div class="max-w-[1600px] mx-auto w-full h-full flex flex-col lg:min-h-0 gap-4">
+        
+        <!-- 頂部控制列 -->
+        <header class="flex-none flex flex-col md:flex-row items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <div>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-2xl font-bold text-indigo-900 flex items-center gap-2">
+                        <span class="text-3xl">🚗</span> 物理運動學實驗室
+                    </h1>
+                    <!-- 離線就緒指示徽章 -->
+                    <div id="offlineStatus" class="text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1.5 bg-slate-100 text-slate-500 border border-slate-200 transition-all">
+                        <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                        <span id="offlineStatusText">離線準備中...</span>
+                    </div>
+                </div>
+                <p class="text-slate-500 text-sm mt-1">探索位置 (s)、速度 (v)、加速度 (a) 與時間 (t) 的圖形關係</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex flex-col md:flex-row gap-3 items-center">
+                <div class="flex items-center gap-2 bg-rose-50 border border-rose-200 px-3 py-2 rounded-lg shadow-sm">
+                    <label for="aSlider" class="text-sm font-bold text-rose-700 whitespace-nowrap cursor-pointer">調整 a = <span id="aValueDisplay" class="inline-block w-8 text-right">0.0</span></label>
+                    <input type="range" id="aSlider" min="-3" max="3" step="0.1" value="0" class="w-24 accent-rose-600 cursor-pointer">
+                </div>
+                <select id="scenarioSelect" class="bg-indigo-50 border border-indigo-200 text-indigo-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none cursor-pointer font-medium">
+                    <option value="0">🚗 情境一：等速度前進</option>
+                    <option value="1">🚀 情境二：等加速度 (加速)</option>
+                    <option value="2">🛑 情境三：等加速度 (減速至停止)</option>
+                    <option value="3">🔄 情境四：拋體與折返運動</option>
+                    <option value="4" selected>⏪ 情境五：全負向探索 (往左)</option>
+                </select>
+            </div>
+        </header>
+
+        <div class="flex-1 flex flex-col lg:flex-row gap-4 lg:min-h-0">
+            
+            <div class="w-full lg:w-7/12 flex flex-col gap-4 lg:min-h-0 relative">
+                
+                <!-- 軌道模擬區 -->
+                <div class="sticky top-0 z-40 lg:static flex-none bg-white rounded-2xl shadow-sm border border-slate-200 p-5 relative overflow-hidden flex flex-col justify-end min-h-[220px]">
+                    <h2 class="absolute top-4 left-5 text-sm font-bold text-slate-400 uppercase tracking-wider">即時物理模擬軌道</h2>
+                    
+                    <div id="trackContainer" class="relative w-full h-[120px] mt-8 border-b-4 border-slate-400">
+                        <div id="trackRuler" class="absolute bottom-[-25px] w-full h-[20px] flex justify-between text-xs text-slate-500 font-medium"></div>
+                        
+                        <!-- 車輛與向量箭頭容器 -->
+                        <div id="car" class="absolute bottom-0 z-10 flex flex-col items-center" style="left: 50%; transform: translateX(-50%); transition: left 0.1s linear;">
+                            
+                            <!-- 速度向量箭頭 (獨立結構，確保文字不鏡像) -->
+                            <div class="absolute bottom-[90px] flex flex-col items-center pointer-events-none w-[200px]" id="vVectorWrapper">
+                                <span id="vLabel" class="mb-1 text-sm font-bold text-blue-600 whitespace-nowrap drop-shadow-md bg-white/80 px-1.5 py-0.5 rounded z-20">v = 0.00</span>
+                                <div class="relative h-3 w-full flex items-center justify-center">
+                                    <div id="vArrowContainer" class="absolute w-full h-full flex items-center" style="transition: all 0.1s linear;"></div>
+                                </div>
+                            </div>
+
+                            <!-- 加速度向量箭頭 (獨立結構) -->
+                            <div class="absolute bottom-[115px] flex flex-col items-center pointer-events-none w-[200px]" id="aVectorWrapper">
+                                <span id="aLabel" class="mb-1 text-xs font-bold text-rose-600 whitespace-nowrap drop-shadow-md bg-white/80 px-1.5 py-0.5 rounded z-20">a = 0.00</span>
+                                <div class="relative h-3 w-full flex items-center justify-center">
+                                    <div id="aArrowContainer" class="absolute w-full h-full flex items-center" style="transition: all 0.1s linear;"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- 客製化車輛圖案 (只有這張圖片會依據速度翻轉) -->
+                            <img id="carImg" src="https://i.meee.com.tw/MuvZKpW.png" alt="模擬車輛" class="w-[140px] h-[80px] object-contain drop-shadow-xl pointer-events-none car-normal transition-transform duration-100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 控制列 -->
+                <div class="flex-none bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
+                    <div class="flex items-center gap-4">
+                        <button id="playBtn" class="w-12 h-12 flex-shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center transition-all shadow-lg shadow-indigo-200 active:scale-95">
+                            <svg id="playIcon" class="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"></path></svg>
+                            <svg id="pauseIcon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4h3v12H5V4zm7 0h3v12h-3V4z"></path></svg>
+                        </button>
+                        
+                        <div class="flex-1 px-2">
+                            <div class="flex justify-between mb-1">
+                                <span class="text-sm font-bold text-slate-600" id="timeDisplay">時間 t = 0.0 s</span>
+                                <span class="text-sm font-bold text-slate-400" id="maxTimeDisplay">/ 10.0 s</span>
+                            </div>
+                            <input type="range" id="timeSlider" min="0" max="10" step="0.1" value="0" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-[250px]">
+                    <div class="flex-none px-5 py-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center relative z-10 shadow-sm">
+                        <h2 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            📊 即時數據與區間計算表
+                        </h2>
+                        <span class="text-xs text-slate-400 font-medium">步距: 0.5s</span>
+                    </div>
+                    <div class="flex-1 overflow-y-auto relative p-0 m-0">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead class="bg-slate-50 sticky top-0 z-10 shadow-sm border-b border-slate-200">
+                                <tr>
+                                    <th class="py-3 px-3 text-center text-slate-600 font-semibold border-b">時間 t (s)</th>
+                                    <th class="py-3 px-3 text-emerald-800 font-semibold border-b">位置 s (m)</th>
+                                    <th class="py-3 px-3 text-blue-800 font-semibold border-b">瞬時速度 v (m/s)</th>
+                                    <th class="py-3 px-3 text-cyan-800 font-semibold border-b min-w-[280px]">區間平均速度 (v_avg = Δs / Δt)</th>
+                                    <th class="py-3 px-3 text-rose-800 font-semibold border-b">加速度 a (m/s²)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTableBody" class="divide-y divide-slate-100">
+                                <!-- JS 動態生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full lg:w-5/12 flex flex-col gap-4 lg:min-h-0">
+                
+                <!-- S-T 圖 -->
+                <div class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col min-h-[200px] relative">
+                    <div class="flex-none z-10 pointer-events-none mb-1">
+                        <h3 class="text-emerald-700 font-bold flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block shadow-sm"></span> 位置-時間 (s-t) 圖</h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5 ml-4.5">切線斜率代表瞬時速度 (v)</p>
+                    </div>
+                    <div class="flex-1 relative w-full touch-none" id="stContainer">
+                        <canvas id="stCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                    </div>
+                </div>
+
+                <!-- V-T 圖 -->
+                <div class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col min-h-[200px] relative">
+                    <div class="flex-none z-10 pointer-events-none mb-1">
+                        <h3 class="text-blue-700 font-bold flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-500 inline-block shadow-sm"></span> 速度-時間 (v-t) 圖</h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5 ml-4.5">斜率代表加速度(a) / 面積代表位移(Δs)</p>
+                    </div>
+                    <div class="flex-1 relative w-full touch-none" id="vtContainer">
+                        <canvas id="vtCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                    </div>
+                </div>
+
+                <!-- A-T 圖 -->
+                <div class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col min-h-[200px] relative">
+                    <div class="flex-none z-10 pointer-events-none mb-1">
+                        <h3 class="text-rose-700 font-bold flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500 inline-block shadow-sm"></span> 加速度-時間 (a-t) 圖</h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5 ml-4.5">面積代表速度變化量(Δv)</p>
+                    </div>
+                    <div class="flex-1 relative w-full touch-none" id="atContainer">
+                        <canvas id="atCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 狀態變數 ---
+        let currentTime = 0;
+        let isPlaying = false;
+        let animationId = null;
+        let physicsData = [];
+        let maxTime = 10;
+        let minS = 0, maxS = 0, minV = 0, maxV = 0, minA = 0, maxA = 0;
+
+        // 定義各情境的預設初值
+        const scenarioDefaults = {
+            0: { s: 0, v: 2, a: 0 },
+            1: { s: 0, v: 0, a: 1 },
+            2: { s: 0, v: 8, a: -0.8 },
+            3: { s: -5, v: 6, a: -1.2 },
+            4: { s: 25, v: -3, a: 0.8 }
+        };
+
+        // --- DOM 元素綁定 ---
+        const els = {
+            scenarioSelect: document.getElementById('scenarioSelect'),
+            aSlider: document.getElementById('aSlider'),
+            aValueDisplay: document.getElementById('aValueDisplay'),
+            playBtn: document.getElementById('playBtn'),
+            playIcon: document.getElementById('playIcon'),
+            pauseIcon: document.getElementById('pauseIcon'),
+            timeSlider: document.getElementById('timeSlider'),
+            timeDisplay: document.getElementById('timeDisplay'),
+            car: document.getElementById('car'),
+            carImg: document.getElementById('carImg'),
+            vArrowContainer: document.getElementById('vArrowContainer'),
+            aArrowContainer: document.getElementById('aArrowContainer'),
+            vLabel: document.getElementById('vLabel'),
+            aLabel: document.getElementById('aLabel'),
+            tbody: document.getElementById('dataTableBody'),
+            trackRuler: document.getElementById('trackRuler'),
+            // Canvas
+            st: document.getElementById('stCanvas'),
+            vt: document.getElementById('vtCanvas'),
+            at: document.getElementById('atCanvas')
+        };
+
+        // --- 初始化與事件監聽 ---
+        window.onload = () => {
+            // 初始化滑桿數值為目前情境的預設值
+            const defaultA = scenarioDefaults[parseInt(els.scenarioSelect.value)].a;
+            els.aSlider.value = defaultA;
+            els.aValueDisplay.innerText = defaultA.toFixed(1);
+
+            generatePhysicsData();
+            resizeCanvases();
+            updateUI();
+            setupGraphInteractions(); 
+            
+            // 監聽器
+            els.scenarioSelect.addEventListener('change', () => {
+                currentTime = 0;
+                els.timeSlider.value = 0;
+                
+                // 切換情境時，同步更新加速度滑桿
+                const defs = scenarioDefaults[parseInt(els.scenarioSelect.value)];
+                els.aSlider.value = defs.a;
+                els.aValueDisplay.innerText = defs.a.toFixed(1);
+
+                generatePhysicsData();
+                updateUI();
+            });
+
+            // 監聽加速度滑桿，動態改變運動狀態
+            els.aSlider.addEventListener('input', (e) => {
+                els.aValueDisplay.innerText = parseFloat(e.target.value).toFixed(1);
+                generatePhysicsData(); // 即時重新計算全部物理數據
+                updateUI(); // 更新圖表與車輛位置
+            });
+            
+            els.playBtn.addEventListener('click', togglePlay);
+            
+            els.timeSlider.addEventListener('input', (e) => {
+                currentTime = parseFloat(e.target.value);
+                if (isPlaying) togglePlay(); // 拖曳時暫停
+                updateUI();
+            });
+
+            window.addEventListener('resize', () => {
+                resizeCanvases();
+                drawAllGraphs();
+            });
+        };
+
+        // --- 物理數據生成 ---
+        function generatePhysicsData() {
+            physicsData = [];
+            const scenario = parseInt(els.scenarioSelect.value);
+            const dt = 0.05; // 繪圖用細緻度
+            
+            // 讀取情境的初始位置與速度，加速度則由滑桿決定
+            let s = scenarioDefaults[scenario].s;
+            let v = scenarioDefaults[scenario].v;
+            let baseA = parseFloat(els.aSlider.value);
+            let a = baseA;
+            
+            minS = s; maxS = s; minV = v; maxV = v; minA = a; maxA = a;
+            
+            for (let t = 0; t <= maxTime + 0.01; t += dt) {
+                // 動態改變加速度情境 (情境二：若為負加速度且速度小於0則停止)
+                if (scenario === 2 && v < 0 && baseA < 0) {
+                    a = 0; v = 0; // 停止
+                } else {
+                    a = baseA;
+                }
+                
+                physicsData.push({ t: parseFloat(t.toFixed(2)), s, v, a });
+                
+                // 更新極值以利繪圖
+                if (s < minS) minS = s; if (s > maxS) maxS = s;
+                if (v < minV) minV = v; if (v > maxV) maxV = v;
+                if (a < minA) minA = a; if (a > maxA) maxA = a;
+                
+                // 積分更新
+                s += v * dt;
+                v += a * dt;
+            }
+            
+            // 加入一些邊距
+            let sRange = maxS - minS || 10;
+            minS -= sRange * 0.1; maxS += sRange * 0.1;
+            
+            generateTable();
+            buildRuler();
+        }
+
+        // --- 建立軌道尺規與表格資料 ---
+        function buildRuler() {
+            els.trackRuler.innerHTML = '';
+            const steps = 5;
+            for (let i = 0; i <= steps; i++) {
+                const val = minS + (maxS - minS) * (i / steps);
+                const span = document.createElement('span');
+                span.innerText = val.toFixed(0) + 'm';
+                els.trackRuler.appendChild(span);
+            }
+        }
+
+        function generateTable() {
+            els.tbody.innerHTML = '';
+            // 步距 0.5s 提取數據
+            let prevS = physicsData[0].s;
+            for (let t = 0; t <= maxTime; t += 0.5) {
+                const point = physicsData.find(p => Math.abs(p.t - t) < 0.01);
+                if (!point) continue;
+                
+                let tr = document.createElement('tr');
+                tr.className = 'transition-colors duration-150 border-b cursor-pointer';
+                tr.dataset.t = t.toFixed(1);
+                
+                // 計算平均速度
+                let vAvgText = '<span class="text-slate-300">-</span>';
+                if (t > 0) {
+                    let vAvg = (point.s - prevS) / 0.5;
+                    vAvgText = `<div class="flex items-center gap-2">
+                                  <span class="font-bold text-cyan-700">${vAvg.toFixed(2)}</span>
+                                  <span class="text-[10px] text-slate-400 bg-slate-100 px-1 rounded">(${point.s.toFixed(2)} - ${prevS.toFixed(2)}) / 0.5</span>
+                                </div>`;
+                }
+                
+                tr.innerHTML = `
+                    <td class="py-2.5 px-3 text-center font-mono font-bold bg-slate-100/50">${point.t.toFixed(1)}</td>
+                    <td class="py-2.5 px-3 font-mono">${point.s.toFixed(2)}</td>
+                    <td class="py-2.5 px-3 font-mono">${point.v.toFixed(2)}</td>
+                    <td class="py-2.5 px-3 font-mono">${vAvgText}</td>
+                    <td class="py-2.5 px-3 font-mono">${point.a.toFixed(2)}</td>
+                `;
+                
+                tr.addEventListener('click', () => {
+                    currentTime = t;
+                    els.timeSlider.value = t;
+                    if (isPlaying) togglePlay();
+                    updateUI();
+                });
+                
+                els.tbody.appendChild(tr);
+                prevS = point.s;
+            }
+        }
+
+        // --- 播放控制與 UI 更新 ---
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                els.playIcon.classList.add('hidden');
+                els.pauseIcon.classList.remove('hidden');
+                if (currentTime >= maxTime) {
+                    currentTime = 0; // 重播
+                    els.timeSlider.value = 0;
+                }
+                lastTimestamp = performance.now();
+                animationId = requestAnimationFrame(animationLoop);
+            } else {
+                els.playIcon.classList.remove('hidden');
+                els.pauseIcon.classList.add('hidden');
+                cancelAnimationFrame(animationId);
+            }
+        }
+
+        let lastTimestamp = 0;
+        function animationLoop(timestamp) {
+            if (!isPlaying) return;
+            const deltaT = (timestamp - lastTimestamp) / 1000; // 轉換為秒
+            lastTimestamp = timestamp;
+            
+            currentTime += deltaT;
+            if (currentTime > maxTime) {
+                currentTime = maxTime;
+                togglePlay(); // 自動停止
+            }
+            
+            els.timeSlider.value = currentTime;
+            updateUI();
+            
+            if (isPlaying) {
+                animationId = requestAnimationFrame(animationLoop);
+            }
+        }
+
+        // 獨立繪製向量箭頭函數（確保數值正向且不翻轉文字，並正確指向左右）
+        function renderVectorArrow(container, labelEl, val, scaleFactor, colorClass, prefix) {
+            // 更新文字 (不管向左向右文字都正常顯示，包含負號)
+            labelEl.innerText = `${prefix} = ${val.toFixed(2)}`;
+            container.innerHTML = '';
+            
+            const absLen = Math.min(95, Math.abs(val) * scaleFactor);
+            if (absLen < 1) return; // 數值太小不畫箭頭
+            
+            const isNegative = val < 0;
+            
+            const bar = document.createElement('div');
+            bar.className = `absolute h-2 ${colorClass} shadow-sm flex items-center z-10`;
+            bar.style.width = `${absLen}px`;
+            
+            const head = document.createElement('div');
+            head.className = `absolute w-4 h-4 ${colorClass}`;
+            
+            // 決定箭頭位置與方向 (從中點往左或往右長)
+            if (isNegative) {
+                bar.classList.add('right-1/2', 'rounded-l-full');
+                head.style.left = '-2px';
+                head.style.clipPath = 'polygon(100% 0, 100% 100%, 0 50%)'; // 箭頭朝左
+            } else {
+                bar.classList.add('left-1/2', 'rounded-r-full');
+                head.style.right = '-2px';
+                head.style.clipPath = 'polygon(0 0, 0% 100%, 100% 50%)'; // 箭頭朝右
+            }
+            
+            bar.appendChild(head);
+            container.appendChild(bar);
+        }
+
+        function updateUI() {
+            els.timeDisplay.innerText = `時間 t = ${currentTime.toFixed(1)} s`;
+            
+            const currentData = physicsData.find(p => p.t >= currentTime) || physicsData[physicsData.length - 1];
+            
+            // 1. 更新車子位置 (X軸平移)
+            const sPercent = ((currentData.s - minS) / (maxS - minS)) * 100;
+            els.car.style.left = `${Math.max(5, Math.min(95, sPercent))}%`;
+            
+            // 2. 判斷車輛圖片方向 (v < 0 則只翻轉車子圖片)
+            if (currentData.v < -0.05) {
+                els.carImg.classList.remove('car-normal');
+                els.carImg.classList.add('car-flip');
+            } else {
+                els.carImg.classList.remove('car-flip');
+                els.carImg.classList.add('car-normal');
+            }
+            
+            // 3. 渲染向量箭頭 (傳入各自的容器與標籤，不會被車子翻轉影響)
+            renderVectorArrow(els.vArrowContainer, els.vLabel, currentData.v, 15, 'bg-blue-500', 'v');
+            renderVectorArrow(els.aArrowContainer, els.aLabel, currentData.a, 30, 'bg-rose-500', 'a');
+
+            // 4. 表格高亮與自動捲動中央
+            const closestT = (Math.round(currentTime * 2) / 2).toFixed(1);
+            const rows = els.tbody.querySelectorAll('tr');
+            rows.forEach(r => {
+                if (r.dataset.t === closestT) {
+                    r.classList.add('bg-yellow-100');
+                    r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    r.classList.remove('bg-yellow-100');
+                }
+            });
+
+            // 5. 重繪圖表
+            drawAllGraphs();
+        }
+
+        // --- 圖表繪製邏輯 ---
+        function resizeCanvases() {
+            const containers = ['stContainer', 'vtContainer', 'atContainer'];
+            containers.forEach(id => {
+                const container = document.getElementById(id);
+                const canvas = container.querySelector('canvas');
+                canvas.width = container.clientWidth * window.devicePixelRatio;
+                canvas.height = container.clientHeight * window.devicePixelRatio;
+            });
+        }
+
+        function drawAllGraphs() {
+            drawGraph(els.st, 's', minS, maxS, '#10b981', false, true); // 不畫面積，畫切線(v)
+            drawGraph(els.vt, 'v', minV - 2, maxV + 2, '#3b82f6', true, true); // 畫面積(s)，畫切線(a)
+            drawGraph(els.at, 'a', minA - 1, maxA + 1, '#f43f5e', true, false); // 畫面積(v)，不畫切線
+        }
+
+        function drawGraph(canvas, dataKey, minY, maxY, color, fillArea, drawTangent) {
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            const padX = 40 * window.devicePixelRatio;
+            const padY = 20 * window.devicePixelRatio;
+            
+            ctx.clearRect(0, 0, w, h);
+            
+            // 座標轉換輔助函數
+            const mapX = (t) => padX + (t / maxTime) * (w - padX * 1.5);
+            const mapY = (val) => {
+                const range = (maxY - minY) === 0 ? 1 : (maxY - minY);
+                return h - padY - ((val - minY) / range) * (h - padY * 2);
+            };
+            
+            const yZero = Math.max(padY, Math.min(h - padY, mapY(0)));
+
+            // 1. 繪製格線與坐標軸
+            ctx.lineWidth = 1 * window.devicePixelRatio;
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.font = `${10 * window.devicePixelRatio}px Inter`;
+            ctx.fillStyle = '#94a3b8';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+
+            const ySteps = 4;
+            for(let i=0; i<=ySteps; i++) {
+                let val = minY + (maxY - minY) * (i/ySteps);
+                let y = mapY(val);
+                ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(w - padX*0.5, y); ctx.stroke();
+                ctx.fillText(val.toFixed(1), padX - 5, y);
+            }
+            
+            ctx.lineWidth = 2 * window.devicePixelRatio;
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.beginPath(); ctx.moveTo(padX, yZero); ctx.lineTo(w - padX*0.5, yZero); ctx.stroke();
+
+            // 2. 積分面積
+            if (fillArea) {
+                ctx.fillStyle = color + '33';
+                ctx.beginPath();
+                ctx.moveTo(mapX(0), yZero);
+                for (let i = 0; i < physicsData.length; i++) {
+                    const p = physicsData[i];
+                    if (p.t > currentTime) break;
+                    ctx.lineTo(mapX(p.t), mapY(p[dataKey]));
+                }
+                const lastPt = physicsData.find(p => p.t >= currentTime) || physicsData[physicsData.length-1];
+                ctx.lineTo(mapX(lastPt.t), yZero);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // 3. 繪製數據曲線
+            ctx.lineWidth = 3 * window.devicePixelRatio;
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            for (let i = 0; i < physicsData.length; i++) {
+                const p = physicsData[i];
+                const x = mapX(p.t);
+                const y = mapY(p[dataKey]);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // 4. 時間垂直游標線
+            const currentX = mapX(currentTime);
+            ctx.lineWidth = 1.5 * window.devicePixelRatio;
+            ctx.strokeStyle = '#64748b';
+            ctx.setLineDash([5 * window.devicePixelRatio, 5 * window.devicePixelRatio]);
+            ctx.beginPath();
+            ctx.moveTo(currentX, padY);
+            ctx.lineTo(currentX, h - padY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 5. 數據點與切線
+            const currentData = physicsData.find(p => p.t >= currentTime) || physicsData[physicsData.length-1];
+            const currentY = mapY(currentData[dataKey]);
+            
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2 * window.devicePixelRatio;
+            ctx.beginPath();
+            ctx.arc(currentX, currentY, 5 * window.devicePixelRatio, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            if (drawTangent) {
+                const slopeVal = dataKey === 's' ? currentData.v : currentData.a;
+                if (Math.abs(slopeVal) > 0.01) {
+                    const tangentLen = 1.5;
+                    const t1 = Math.max(0, currentTime - tangentLen);
+                    const t2 = Math.min(maxTime, currentTime + tangentLen);
+                    const y1 = currentData[dataKey] + slopeVal * (t1 - currentTime);
+                    const y2 = currentData[dataKey] + slopeVal * (t2 - currentTime);
+                    
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 2 * window.devicePixelRatio;
+                    ctx.beginPath();
+                    ctx.moveTo(mapX(t1), mapY(y1));
+                    ctx.lineTo(mapX(t2), mapY(y2));
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // --- 圖表拖曳互動功能 ---
+        function setupGraphInteractions() {
+            const canvases = [els.st, els.vt, els.at];
+            let activeCanvas = null;
+
+            const updateTimeFromEvent = (e, canvas) => {
+                const rect = canvas.getBoundingClientRect();
+                let clientX = e.clientX;
+                
+                // 支援觸控事件
+                if (e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX;
+                } else if (e.changedTouches && e.changedTouches.length > 0) {
+                    clientX = e.changedTouches[0].clientX;
+                }
+                if (clientX === undefined) return;
+
+                const x_css = clientX - rect.left;
+                const w_css = rect.width;
+                const padX_css = 40; // 對應繪圖函數中 padX 在 CSS 內的等效像素(40)
+                
+                // 將滑鼠 X 座標反推算回時間 t
+                let t = ((x_css - padX_css) / (w_css - padX_css * 1.5)) * maxTime;
+                t = Math.max(0, Math.min(maxTime, t));
+                
+                currentTime = t;
+                els.timeSlider.value = t;
+                updateUI(); // 更新全域 UI 包含車輛與其他圖表
+            };
+
+            const onPointerDown = (e) => {
+                activeCanvas = e.target;
+                if (isPlaying) togglePlay(); // 若正在播放，拖曳時自動暫停
+                updateTimeFromEvent(e, activeCanvas);
+                
+                if (e.type === 'touchstart' && e.cancelable) {
+                    e.preventDefault();
+                }
+            };
+
+            const onPointerMove = (e) => {
+                if (activeCanvas) {
+                    updateTimeFromEvent(e, activeCanvas);
+                    if (e.type === 'touchmove' && e.cancelable) {
+                        e.preventDefault(); // 防止在觸控裝置上滑動圖表時變成滾動頁面
+                    }
+                }
+            };
+
+            const onPointerUp = (e) => {
+                activeCanvas = null;
+            };
+
+            canvases.forEach(canvas => {
+                canvas.style.cursor = 'ew-resize'; // 提示這區塊可以左右拖曳
+                canvas.addEventListener('mousedown', onPointerDown);
+                canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+            });
+
+            // 監聽全域事件，即使滑鼠拖曳到圖表外也能繼續感應
+            window.addEventListener('mousemove', onPointerMove);
+            window.addEventListener('mouseup', onPointerUp);
+            window.addEventListener('touchmove', onPointerMove, { passive: false });
+            window.addEventListener('touchend', onPointerUp);
+        }
+
+        function setupPWA() {
+            // 1. 動態建立 Web App Manifest
+            const manifest = {
+                "name": "物理運動學實驗室",
+                "short_name": "物理Lab",
+                "start_url": "./",
+                "scope": "./",
+                "display": "standalone",
+                "background_color": "#f8fafc",
+                "theme_color": "#4f46e5",
+                "icons": [
+                    {
+                        "src": "https://api.iconify.design/noto/automobile.svg?width=192&height=192",
+                        "sizes": "192x192",
+                        "type": "image/svg+xml",
+                        "purpose": "any maskable"
+                    },
+                    {
+                        "src": "https://api.iconify.design/noto/automobile.svg?width=512&height=512",
+                        "sizes": "512x512",
+                        "type": "image/svg+xml",
+                        "purpose": "any maskable"
+                    }
+                ]
+            };
+            
+            let manifestLink = document.getElementById('manifest-link');
+            if (!manifestLink) {
+                manifestLink = document.createElement('link');
+                manifestLink.id = 'manifest-link';
+                manifestLink.rel = 'manifest';
+                document.head.appendChild(manifestLink);
+            }
+            manifestLink.href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest));
+
+            // 2. 註冊 Service Worker 並更新離線狀態燈
+            const badge = document.getElementById('offlineStatus');
+            const statusText = document.getElementById('offlineStatusText');
+
+            const updateStatus = (isReady, msg) => {
+                if (!badge || !statusText) return;
+                if (isReady) {
+                    badge.className = 'text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm';
+                    badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>${msg || '已就緒(可離線)'}</span>`;
+                } else {
+                    badge.className = 'text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200';
+                    badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span><span>${msg || '快取建立中...'}</span>`;
+                }
+            };
+
+            const isSecureHttp = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            if ('serviceWorker' in navigator && isSecureHttp) {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((reg) => {
+                        if (reg.active) {
+                            updateStatus(true, '已就緒(可離線)');
+                        } else {
+                            updateStatus(false, '快取儲存中...');
+                            reg.addEventListener('updatefound', () => {
+                                const newWorker = reg.installing;
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'activated') {
+                                        updateStatus(true, '已就緒(可離線)');
+                                    }
+                                });
+                            });
+                        }
+                    })
+                    .catch(() => {
+                        updateStatus(false, '未偵測到 sw.js');
+                    });
+            } else {
+                updateStatus(false, '環境不支援離線');
+            }
+        }
+
+        // 確保 PWA 功能自動啟動
+        if (document.readyState === 'complete') {
+            setupPWA();
+        } else {
+            window.addEventListener('load', setupPWA);
+        }
+    </script>
+
+    <!-- 
+    ======================================================================
+    🚀 【請更新你的 sw.js 檔案為以下全新程式碼】 
+    ======================================================================
+    請在電腦上開啟原本的「sw.js」，將內容【全部清空替換】為以下這段全新的健壯版程式碼，
+    然後將 index.html 與 sw.js 一起重新拖曳到 Netlify 更新：
+
+const CACHE_NAME = 'physics-lab-v2';
+const CORE_ASSETS = [
+    './',
+    './index.html'
+];
+
+// 安裝階段：核心資源獨立快取，即便外部資源超時也不會中斷安裝
+self.addEventListener('install', (event) => {
+    self.skipWaiting();
+    event.waitUntil(
+        caches.open(CACHE_NAME).then(async (cache) => {
+            for (const asset of CORE_ASSETS) {
+                try {
+                    await cache.add(asset);
+                } catch (e) {
+                    console.warn('Cache error for:', asset, e);
+                }
+            }
+        })
+    );
+});
+
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((keys) => {
+            return Promise.all(
+                keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+            );
+        }).then(() => self.clients.claim())
+    );
+});
+
+// 請求攔截：確保斷網導航與背景資源動態快取
+self.addEventListener('fetch', (event) => {
+    if (event.request.method !== 'GET') return;
+
+    // 1. 導覽請求（開啟 App 或點擊圖示）：優先嘗試快取的 index.html
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            caches.match('./index.html')
+                .then(res => res || caches.match('./'))
+                .then(res => res || fetch(event.request))
+                .catch(() => caches.match('./index.html'))
+        );
+        return;
+    }
+
+    // 2. 靜態資源（Tailwind CDN、Google Fonts、車輛圖）：快取優先，並自動動態收錄
+    event.respondWith(
+        caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+                return cachedResponse;
+            }
+            return fetch(event.request).then((networkResponse) => {
+                if (networkResponse && networkResponse.status === 200) {
+                    const responseClone = networkResponse.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseClone);
+                    });
+                }
+                return networkResponse;
+            }).catch(() => {
+                return new Response('', { status: 408, statusText: 'Offline Resource' });
+            });
+        })
+    );
+});
+    ======================================================================
+    -->
+</body>
+</html>
